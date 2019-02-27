@@ -91,6 +91,9 @@ digit = satisfy isDigit
 letter :: Parser String Char
 letter = satisfy isLetter
 
+space :: Parser String ()
+space = const () <$> satisfy isSpace
+
 -- Checks if the first character of the string is the one given
 char :: Char -> Parser String Char
 char = token
@@ -131,6 +134,30 @@ add (Trie t edges) (x:xs) = case lookup x edges of
 
 get :: (Eq k) => Trie k -> k -> Maybe (Trie k)
 get (Trie _ edges) key = lookup key edges
+
+try :: Parser String a -> Parser String (Maybe a)
+try prs = fmap Just prs <|> success Nothing
+
+parseList :: Parser String el -> Parser String del -> Parser String lbr -> Parser String rbr -> Int -> Parser String [el]
+parseList el del lbr rbr minimumNumberElems = do
+    let manySpaces = many $ satisfy isSpace
+    let parseItem = manySpaces *> el <* (manySpaces >> del)
+    let parseLastItem = manySpaces *> el <* manySpaces
+    
+    lbr
+    xs <- many parseItem
+    x  <- try parseLastItem
+    rbr
+    
+    let result = case x of
+                    Nothing   -> xs
+                    Just item -> xs ++ [item]
+    
+    if length result >= minimumNumberElems 
+    then
+        return result
+    else
+        fail
 
 
 instance Functor (Parser s) where
