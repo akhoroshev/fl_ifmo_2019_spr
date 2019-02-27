@@ -138,8 +138,8 @@ get (Trie _ edges) key = lookup key edges
 try :: Parser String a -> Parser String (Maybe a)
 try prs = fmap Just prs <|> success Nothing
 
-parseList :: Parser String el -> Parser String del -> Parser String lbr -> Parser String rbr -> Int -> Parser String [el]
-parseList el del lbr rbr minimumNumberElems = do
+parseList :: Parser String el -> Parser String del -> Parser String lbr -> Parser String rbr -> (Int -> Bool) -> Parser String [el]
+parseList el del lbr rbr pr = do
     let manySpaces = many $ satisfy isSpace
     let parseItem = manySpaces *> el <* (manySpaces >> del)
     let parseLastItem = manySpaces *> el <* manySpaces
@@ -153,7 +153,7 @@ parseList el del lbr rbr minimumNumberElems = do
                     Nothing   -> xs
                     Just item -> xs ++ [item]
     
-    if length result >= minimumNumberElems 
+    if pr $ length result
     then
         return result
     else

@@ -35,27 +35,27 @@ prsAutomation = do
     let nonEmptyString = some letter
     let colon = (many space) *> char ',' <* (many space)
     
-    listSigma <- parseList nonEmptyString (char ',') (char '<') (char '>') 0
+    listSigma <- parseList nonEmptyString (char ',') (char '<') (char '>') (>0)
     let sigma = Set.fromList listSigma
     colon
     
-    listStates <- parseList nonEmptyString (char ',') (char '<') (char '>') 0
+    listStates <- parseList nonEmptyString (char ',') (char '<') (char '>') (>0)
     let states= Set.fromList listStates
     colon
     
-    listInitState <- parseList nonEmptyString (char ',') (char '<') (char '>') 1
-    let initState = head listInitState
+    [ initState ] <- parseList nonEmptyString (char ',') (char '<') (char '>') (==1)
+
     colon
     
-    listTermStates <- parseList nonEmptyString (char ',') (char '<') (char '>') 0
+    listTermStates <- parseList nonEmptyString (char ',') (char '<') (char '>') (>0)
     let termState = Set.fromList listTermStates
     colon
     
     let tripleParser = do
-        [fromState, symb, toState] <- parseList nonEmptyString (char ',') (char '(') (char ')') 3
+        [fromState, symb, toState] <- parseList nonEmptyString (char ',') (char '(') (char ')') (==3)
         return ((fromState, symb), Just toState)
     
-    listDelta <- parseList tripleParser (char ',') (char '<') (char '>') 0
+    listDelta <- parseList tripleParser (char ',') (char '<') (char '>') (const True)
     let delta = Map.fromList listDelta
     
     return $ Automaton sigma states initState termState delta
