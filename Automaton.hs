@@ -4,7 +4,7 @@ import Combinators
 
 import Prelude hiding (fail)
 
-import Control.Applicative ((<|>))
+import Control.Applicative ((<|>), ZipList)
 
 import qualified Data.Map.Lazy as Map
 import qualified Data.Set as Set
@@ -37,10 +37,12 @@ prsAutomation = do
     
     listSigma <- parseList nonEmptyString (char ',') (char '<') (char '>') (>0)
     let sigma = Set.fromList listSigma
+    
     colon
     
     listStates <- parseList nonEmptyString (char ',') (char '<') (char '>') (>0)
-    let states= Set.fromList listStates
+    let states = Set.fromList listStates
+    
     colon
     
     let allowedStates = choice (string <$> listStates)
@@ -50,12 +52,17 @@ prsAutomation = do
     
     listTermStates <- parseList allowedStates (char ',') (char '<') (char '>') (>0)
     let termState = Set.fromList listTermStates
+    
     colon
     
     let tripleParser = do
         [fromState, symb, toState] <- parseList nonEmptyString (char ',') (char '(') (char ')') (==3)
-        return ((fromState, symb), Just toState)
-    
+        if (Set.member fromState states) && (Set.member toState states) && (Set.member symb sigma)
+        then
+            return ((fromState, symb), Just toState)
+        else
+            fail
+        
     listDelta <- parseList tripleParser (char ',') (char '<') (char '>') (const True)
     let delta = Map.fromList listDelta
     
