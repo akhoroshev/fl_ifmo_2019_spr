@@ -1,6 +1,6 @@
 module Automaton where
 
-import Combinators (Parser, keywords, char, string, some, many, runParser, digit, letter, choice, eof, parseList, fail, space)
+import Combinators
 
 import Prelude hiding (fail)
 
@@ -43,11 +43,12 @@ prsAutomation = do
     let states= Set.fromList listStates
     colon
     
-    [ initState ] <- parseList nonEmptyString (char ',') (char '<') (char '>') (==1)
-
+    let allowedStates = choice (string <$> listStates)
+    [ initState ] <- parseList allowedStates (char ',') (char '<') (char '>') (==1)
+        
     colon
     
-    listTermStates <- parseList nonEmptyString (char ',') (char '<') (char '>') (>0)
+    listTermStates <- parseList allowedStates (char ',') (char '<') (char '>') (>0)
     let termState = Set.fromList listTermStates
     colon
     

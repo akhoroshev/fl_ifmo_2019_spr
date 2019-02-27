@@ -1,6 +1,6 @@
 module Tokenizer where
 
-import Combinators (Parser, keywords, char, string, some, many, runParser, digit, letter, choice, eof)
+import Combinators
 import Control.Applicative ((<|>))
 
 data Token = Ident String

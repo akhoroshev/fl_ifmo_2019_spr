@@ -1,4 +1,4 @@
-module Combinators where
+module Combinators (Parser, keywords, char, string, some, many, runParser, digit, letter, choice, eof, parseList, fail, space) where
 
 import Data.Char
 import qualified Prelude
