@@ -4,7 +4,7 @@ import Combinators
 
 import Prelude hiding (fail)
 
-import Control.Applicative ((<|>), ZipList)
+import Control.Applicative ((<|>))
 
 import qualified Data.Map.Lazy as Map
 import qualified Data.Set as Set
@@ -50,7 +50,7 @@ prsAutomation = do
         
     colon
     
-    listTermStates <- parseList allowedStates (char ',') (char '<') (char '>') (>0)
+    listTermStates <- parseList allowedStates (char ',') (char '<') (char '>') (const True)
     let termState = Set.fromList listTermStates
     
     colon

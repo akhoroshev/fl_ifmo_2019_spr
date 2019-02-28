@@ -140,7 +140,7 @@ try prs = fmap Just prs <|> success Nothing
 
 parseList :: Parser String el -> Parser String del -> Parser String lbr -> Parser String rbr -> (Int -> Bool) -> Parser String [el]
 parseList el del lbr rbr pr = do
-    let manySpaces = many $ satisfy isSpace
+    let manySpaces = many $ space
     let parseItem = manySpaces *> el <* (manySpaces >> del)
     let parseLastItem = manySpaces *> el <* manySpaces
     
