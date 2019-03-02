@@ -1,13 +1,13 @@
 module Automaton where
 
-import Combinators
+import           Combinators
 
-import Prelude hiding (fail)
+import           Prelude                 hiding ( fail )
 
-import Control.Applicative ((<|>))
+import           Control.Applicative            ( (<|>) )
 
-import qualified Data.Map.Lazy as Map
-import qualified Data.Set as Set
+import qualified Data.Map.Lazy                 as Map
+import qualified Data.Set                      as Set
 
 type Set = Set.Set
 type Map = Map.Map
@@ -33,37 +33,57 @@ parseAutomaton s = snd <$> (runParser prsAutomation s)
 prsAutomation :: Parser String (Automaton String String)
 prsAutomation = do
     let nonEmptyString = some (letter <|> digit)
-    let colon = (many space) *> char ',' <* (many space)
-    
-    listSigma <- parseList nonEmptyString (char ',') (char '<') (char '>') (>0)
+    let colon          = (many space) *> char ',' <* (many space)
+
+    listSigma <- parseList nonEmptyString (char ',') (char '<') (char '>') (> 0)
     let sigma = Set.fromList listSigma
-    
+
     colon
-    
-    listStates <- parseList nonEmptyString (char ',') (char '<') (char '>') (>0)
+
+    listStates <- parseList nonEmptyString
+                            (char ',')
+                            (char '<')
+                            (char '>')
+                            (> 0)
     let states = Set.fromList listStates
-    
+
     colon
-    
+
     let allowedStates = choice (string <$> listStates)
-    [ initState ] <- parseList allowedStates (char ',') (char '<') (char '>') (==1)
-        
+    [initState] <- parseList allowedStates
+                             (char ',')
+                             (char '<')
+                             (char '>')
+                             (== 1)
+
     colon
-    
-    listTermStates <- parseList allowedStates (char ',') (char '<') (char '>') (const True)
+
+    listTermStates <- parseList allowedStates
+                                (char ',')
+                                (char '<')
+                                (char '>')
+                                (const True)
     let termState = Set.fromList listTermStates
-    
+
     colon
-    
+
     let tripleParser = do
-        [fromState, symb, toState] <- parseList nonEmptyString (char ',') (char '(') (char ')') (==3)
-        if (Set.member fromState states) && (Set.member toState states) && (Set.member symb sigma)
-        then
-            return ((fromState, symb), Just toState)
-        else
-            fail
-        
-    listDelta <- parseList tripleParser (char ',') (char '<') (char '>') (const True)
+            [fromState, symb, toState] <- parseList nonEmptyString
+                                                    (char ',')
+                                                    (char '(')
+                                                    (char ')')
+                                                    (== 3)
+            if (Set.member fromState states)
+                   && (Set.member toState states)
+                   && (Set.member symb sigma)
+                then return ((fromState, symb), Just toState)
+                else fail
+
+    listDelta <- parseList tripleParser
+                           (char ',')
+                           (char '<')
+                           (char '>')
+                           (const True)
     let delta = Map.fromList listDelta
-    
+
     return $ Automaton sigma states initState termState delta
