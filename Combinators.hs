@@ -141,17 +141,17 @@ try prs = fmap Just prs <|> success Nothing
 parseList :: Parser String el -> Parser String del -> Parser String lbr -> Parser String rbr -> (Int -> Bool) -> Parser String [el]
 parseList el del lbr rbr pr = do
     let manySpaces = many $ space
-    let parseItem = manySpaces *> el <* (manySpaces >> del)
-    let parseLastItem = manySpaces *> el <* manySpaces
+    let parseOther= (del >> manySpaces) *> el <* (manySpaces)
+    let parseFirst = manySpaces *> el <* manySpaces
     
     lbr
-    xs <- many parseItem
-    x  <- try parseLastItem
+    x  <- try parseFirst
+    xs <- many parseOther
     rbr
     
     let result = case x of
                     Nothing   -> xs
-                    Just item -> xs ++ [item]
+                    Just item -> item:xs
     
     if pr $ length result
     then

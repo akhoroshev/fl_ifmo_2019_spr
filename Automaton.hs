@@ -32,7 +32,7 @@ parseAutomaton s = snd <$> (runParser prsAutomation s)
 
 prsAutomation :: Parser String (Automaton String String)
 prsAutomation = do
-    let nonEmptyString = some letter
+    let nonEmptyString = some (letter <|> digit)
     let colon = (many space) *> char ',' <* (many space)
     
     listSigma <- parseList nonEmptyString (char ',') (char '<') (char '>') (>0)
