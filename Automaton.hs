@@ -84,6 +84,8 @@ prsAutomation = do
                            (char '<')
                            (char '>')
                            (const True)
+    many space
+    eof
     let delta = Map.fromList listDelta
 
     return $ Automaton sigma states initState termState delta
