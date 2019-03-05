@@ -3,6 +3,7 @@ module Main where
 import System.Environment
 import Automaton
 import Text.Printf
+import Combinators
 
 automatonInfo :: Automaton a b -> String
 automatonInfo auto = 
