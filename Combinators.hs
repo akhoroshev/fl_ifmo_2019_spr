@@ -2,23 +2,27 @@
 
 
 module Combinators
-  ( runParser
-  , char
-  , string
-  , some
-  , many
-  , digit
-  , letter
-  , choice
-  , eof
-  , parseList
-  , space
-)
+    ( Parser
+    , runParser
+    , streamCreate
+    , char
+    , string
+    , some
+    , many
+    , digit
+    , letter
+    , choice
+    , eof
+    , parseList
+    , space
+    )
 where
 
-import           Prelude                 hiding ( (<>) )
+-- import Prelude hiding ( fail )
+
 import           Control.Applicative
-import           Control.Monad
+import           Control.Monad                  ( void )
+import qualified Control.Monad.Fail            as Fail
 import           Data.Char
 import           Data.Foldable
 
@@ -60,8 +64,12 @@ data Stream token = Stream {stream :: [token], position :: Location }
 instance Show tok => Show (Stream tok) where
     show :: Stream tok -> String
     show (Stream xs loc) =
-        "\nLine: " ++ show (locationLine loc) ++ "\nColumn: " ++ show
-            (locationColumn loc) ++ "\nstream: " ++ show xs
+        "\nLine: "
+            ++ show (locationLine loc)
+            ++ "\nColumn: "
+            ++ show (locationColumn loc)
+            ++ "\nstream: "
+            ++ show xs
 
 streamCreate :: [tok] -> Stream tok
 streamCreate xs = Stream xs (Location 0 0)
@@ -109,6 +117,11 @@ instance Monad (Parser s) where
             Left  err      -> Left err
             Right (s'', b) -> Right (s'', b)
 
+    fail :: String -> Parser s a
+    fail msg = Parser $ \s -> Left $ errorParse (streamLocation s) msg
+
+
+instance Fail.MonadFail (Parser s) where
     fail :: String -> Parser s a
     fail msg = Parser $ \s -> Left $ errorParse (streamLocation s) msg
 
