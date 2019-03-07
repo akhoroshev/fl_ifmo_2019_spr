@@ -190,19 +190,19 @@ parseList
     -> Parser Char rbr
     -> (Int -> Bool)
     -> Parser Char [el]
-parseList el del lbr rbr pr = do
-    let manySpaces = many space
-    let parseOther = (del >> manySpaces) *> el <* manySpaces
-    let parseFirst = manySpaces *> el <* manySpaces
-
-    lbr
-    x  <- try parseFirst
-    xs <- many parseOther
-    rbr
-
-    let result = case x of
-            Nothing   -> xs
-            Just item -> item : xs
-    if pr $ length result
-        then return result
-        else fail "unexpected items in list"
+parseList el del lbr rbr pr =
+    let
+        manySpaces = many space
+        parseOther = (del >> manySpaces) *> el <* manySpaces
+        parseFirst = manySpaces *> el <* manySpaces
+    in
+        (lbr >> manySpaces >> rbr >> (if pr 0 then return [] else fail "unexpected items in list")) <|>
+        do
+            lbr
+            x  <- parseFirst
+            xs <- many parseOther
+            rbr
+            let result = x : xs
+            if pr $ length result
+                then return result
+                else fail "unexpected items in list"
