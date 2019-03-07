@@ -39,7 +39,7 @@ parseAutomaton s = case (runParser prsAutomation (streamCreate s)) of
 
 prsAutomation :: Parser Char (Automaton String String)
 prsAutomation = do
-    let epsilon = "epsilon"
+    let epsilon        = "epsilon"
 
     let nonEmptyString = some (letter <|> digit)
     let colon          = many space *> char ',' <* many space
@@ -86,7 +86,15 @@ prsAutomation = do
                    && Set.member toState states
                    && (Set.member symb sigma || symb == epsilon)
                 then return ((fromState, symb), Just toState)
-                else fail "wrong delta function"
+                else
+                    fail
+                    $  "wrong transition: ("
+                    ++ show fromState
+                    ++ ", "
+                    ++ show symb
+                    ++ ", "
+                    ++ show toState
+                    ++ ")"
 
     listDelta <- parseList tripleParser
                            (char ',')
@@ -110,8 +118,8 @@ isDFA aut =
 
 
 -- Checks if the automaton is nondeterministic (eps-transition or multiple transitions for a state and a symbol)
-isNFA :: (Ord a, Ord b) => Automaton a b -> Bool
-isNFA = not . isDFA
+isNFA :: Automaton a b -> Bool
+isNFA = const True
 
 -- Checks if the automaton is complete (there exists a transition for each state and each input symbol)
 isComplete :: (Ord a, Ord b) => Automaton a b -> Bool
@@ -122,7 +130,7 @@ isComplete aut =
                 , a <- Set.toList (sigma aut)
                 ]
     in  foldr (\key b -> checkValues key && b) True allKeys
-    where checkValues key = not $ null (catMaybes $ Map.lookup key (delta aut))
+    where checkValues key = not $ null (Map.lookup key (delta aut))
 
 -- Checks if the automaton is minimal (only for DFAs: the number of states is minimal)
 isMinimal :: Automaton a b -> Bool

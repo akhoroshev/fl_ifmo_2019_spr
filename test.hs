@@ -7,7 +7,6 @@ main :: IO ()
 main = do
     testParseAutomaton
     testIsDFA
-    testIsNFA
     testIsComplete
     putStrLn "Test passed"
     return ()
@@ -44,23 +43,16 @@ testIsDFA = do
     Right True <- pure $ isDFA <$> parseAutomaton "<a,b>, <1,2>, <1>, <1>, <(1, a, 1)>"
     Right True <- pure $ isDFA <$> parseAutomaton "<a,b,c>, <1,2>, <1>, <1>, <(1, a, 1), (1, b, 1)>"
     Right True <- pure $ isDFA <$> parseAutomaton "<a,b,c>, <1,2>, <1>, <1>, <(1, a, 1), (1, b, 1), (1, c, 1)>"
+    Right True <- pure $ isDFA <$> parseAutomaton "<a>, <1>, <1>, <1>, <>"
+    Right True <- pure $ isDFA <$> parseAutomaton "<a,b>, <1,2>, <1>, <1>, <(1, a, 2), (2, a, 1)>"
 
     Right False <- pure $ isDFA <$> parseAutomaton "<a>, <1>, <1>, <1>, <(1, epsilon, 1)>"
     Right False <- pure $ isDFA <$> parseAutomaton "<a,b>, <1,2>, <1>, <1>, <(1, a, 1), (1, a, 2)>"
+    Right False <- pure $ isDFA <$> parseAutomaton "<a>, <1>, <1>, <1>, <(1, epsilon, 1)>"
+    Right False <- pure $ isDFA <$> parseAutomaton "<a>, <1>, <1>, <1>, <(1, a, 1), (1, epsilon, 1)>"
+    Right False <- pure $ isDFA <$> parseAutomaton "<a,b>, <1,2>, <1>, <1>, <(1, a, 1), (2, b, 1), (2, b, 2), (1, epsilon, 1)>"
+    Right False <- pure $ isDFA <$> parseAutomaton "<a,b,c>, <1,2>, <1>, <1>, <(1, a, 1), (1, b, 1), (1, b, 2)>"
     return ()
-
-testIsNFA :: IO ()
-testIsNFA = do
-    Right True <- pure $ isNFA <$> parseAutomaton "<a>, <1>, <1>, <1>, <(1, epsilon, 1)>"
-    Right True <- pure $ isNFA <$> parseAutomaton "<a>, <1>, <1>, <1>, <(1, a, 1), (1, epsilon, 1)>"
-    Right True <- pure $ isNFA <$> parseAutomaton "<a,b>, <1,2>, <1>, <1>, <(1, a, 1), (2, b, 1), (2, b, 2), (1, epsilon, 1)>"
-    Right True <- pure $ isNFA <$> parseAutomaton "<a,b,c>, <1,2>, <1>, <1>, <(1, a, 1), (1, b, 1), (1, b, 2)>"
-
-    Right False <- pure $ isNFA <$> parseAutomaton "<a>, <1>, <1>, <1>, <(1, a, 1)>"
-    Right False <- pure $ isNFA <$> parseAutomaton "<a>, <1>, <1>, <1>, <>"
-    Right False <- pure $ isNFA <$> parseAutomaton "<a,b>, <1,2>, <1>, <1>, <(1, a, 2), (2, a, 1)>"
-    return ()
-
 
 testIsComplete :: IO ()
 testIsComplete = do
