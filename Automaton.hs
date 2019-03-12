@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# Language InstanceSigs #-}
 
 module Automaton where
@@ -5,6 +6,8 @@ module Automaton where
 import qualified Data.MultiMap                 as Map
 import qualified Data.Set                      as Set
 
+import           Data.List
+import           Control.Monad.State.Lazy
 import           Combinators
 import           Control.Applicative            ( (<|>) )
 import           Data.Maybe
@@ -136,4 +139,97 @@ isComplete aut =
 isMinimal :: Automaton a b -> Bool
 isMinimal = undefined
 
+-- Transform non complete DFA to complete DFA
+completionDFA :: (Ord a, Ord b) => Automaton a b -> Automaton a b
+completionDFA aut = aut { delta = updated }
+  where
+    allKeys =
+        [ (b, a) | b <- Set.toList (states aut), a <- Set.toList (sigma aut) ]
+    updated = foldr
+        (\key delta' -> if Map.notMember delta' key
+            then Map.insert key Nothing delta'
+            else delta'
+        )
+        (delta aut)
+        allKeys
 
+
+data ConvertionState a b = Info { added' :: Set [b]
+                                , queue' :: Set [b]
+                                , term' :: Set [b]
+                                , delta' :: Map ([b], a) (Maybe [b])
+                                }
+
+-- Thompson algorithm (for automaton without epsilon transitions)
+convertNFAtoFDA :: (Ord a, Ord b) => Automaton a b -> Automaton a [b]
+convertNFAtoFDA aut = evalState
+    (convertNFAtoFDA_ aut)
+    (Info Set.empty (Set.fromList [[initState aut]]) Set.empty Map.empty)
+  where
+
+    rmdups :: (Ord a) => [a] -> [a]
+    rmdups = map head . group . sort
+
+    convertNFAtoFDA_
+        :: (Ord a, Ord b)
+        => Automaton a b
+        -> State (ConvertionState a b) (Automaton a [b])
+    convertNFAtoFDA_ aut = do
+        let oldTerminal = termState aut
+        let oldDelta    = delta aut
+        let oldSigma    = sigma aut
+        q <- gets queue'
+        if null q
+            then do
+                newDelta    <- gets delta'
+                newStates   <- gets added'
+                newTerminal <- gets term'
+                return $ Automaton (sigma aut)
+                                   newStates
+                                   [initState aut]
+                                   newTerminal
+                                   newDelta
+                                   (epsilon aut)
+            else do
+                itemList <- gets $ Set.elemAt 0 . queue'
+                modify (\st -> st { queue' = Set.deleteAt 0 (queue' st) })
+                modify (\st -> st { added' = Set.insert itemList (added' st) })
+
+                when (or $ flip Set.member oldTerminal <$> itemList) $ modify
+                    (\st -> st { term' = Set.insert itemList (term' st) })
+
+                let forCheck = [ (itemList, a) | a <- Set.toList oldSigma ]
+                let edgesTo = foldr
+                        (\(item, symb) ans ->
+                            ( rmdups
+                                .   catMaybes
+                                .   concat
+                                $   (\i -> Map.lookup (i, symb) oldDelta)
+                                <$> item
+                                , symb
+                                )
+                                : ans
+                        )
+                        []
+                        forCheck
+
+                let
+                    processEdge (xs, a) = do
+                        alreadyAdded <- gets $ Set.member xs . added'
+                        modify
+                            (\st -> st
+                                { delta' = Map.insert (itemList, a)
+                                                      (Just xs)
+                                                      (delta' st)
+                                }
+                            )
+                        unless alreadyAdded
+                            $ modify
+                                  (\st -> st
+                                      { queue' = Set.insert xs (queue' st)
+                                      }
+                                  )
+
+                mapM_ processEdge edgesTo
+
+                convertNFAtoFDA_ aut
