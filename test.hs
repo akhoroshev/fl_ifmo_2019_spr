@@ -8,6 +8,7 @@ main = do
     testParseAutomaton
     testIsDFA
     testIsComplete
+    testAll
     putStrLn "Test passed"
     return ()
 
@@ -46,11 +47,11 @@ testIsDFA = do
     Right True <- pure $ isDFA <$> parseAutomaton "<a>, <1>, <1>, <1>, <>"
     Right True <- pure $ isDFA <$> parseAutomaton "<a,b>, <1,2>, <1>, <1>, <(1, a, 2), (2, a, 1)>"
 
-    Right False <- pure $ isDFA <$> parseAutomaton "<a>, <1>, <1>, <1>, <(1, epsilon, 1)>"
+    Right False <- pure $ isDFA <$> parseAutomaton "<a>, <1>, <1>, <1>, <(1, \\epsilon, 1)>"
     Right False <- pure $ isDFA <$> parseAutomaton "<a,b>, <1,2>, <1>, <1>, <(1, a, 1), (1, a, 2)>"
-    Right False <- pure $ isDFA <$> parseAutomaton "<a>, <1>, <1>, <1>, <(1, epsilon, 1)>"
-    Right False <- pure $ isDFA <$> parseAutomaton "<a>, <1>, <1>, <1>, <(1, a, 1), (1, epsilon, 1)>"
-    Right False <- pure $ isDFA <$> parseAutomaton "<a,b>, <1,2>, <1>, <1>, <(1, a, 1), (2, b, 1), (2, b, 2), (1, epsilon, 1)>"
+    Right False <- pure $ isDFA <$> parseAutomaton "<a>, <1>, <1>, <1>, <(1, \\epsilon, 1)>"
+    Right False <- pure $ isDFA <$> parseAutomaton "<a>, <1>, <1>, <1>, <(1, a, 1), (1, \\epsilon, 1)>"
+    Right False <- pure $ isDFA <$> parseAutomaton "<a,b>, <1,2>, <1>, <1>, <(1, a, 1), (2, b, 1), (2, b, 2), (1, \\epsilon, 1)>"
     Right False <- pure $ isDFA <$> parseAutomaton "<a,b,c>, <1,2>, <1>, <1>, <(1, a, 1), (1, b, 1), (1, b, 2)>"
     return ()
 
@@ -63,4 +64,11 @@ testIsComplete = do
     Right False <- pure $ isComplete <$> parseAutomaton "<a>, <1>, <1>, <1>, <>"
     Right False <- pure $ isComplete <$> parseAutomaton "<a,b>, <1>, <1>, <1>, <(1, a, 1)>"
     Right False <- pure $ isComplete <$> parseAutomaton "<a,b>, <1,2>, <1>, <1>, <(1, a, 1), (1, b, 1), (2, a, 1)>"
+    return ()
+
+testAll :: IO ()
+testAll = do
+    Right True <- pure $ isNFA <$> parseAutomaton "<a, b>, <1, 2, 3>, <1>, <1,3>, <(1, a, 1), (2, b, 1), (1, b, 2), (2, b, 2), (2, a, 3), (3, a, 2), (3, b, 3)>"
+    Right False <- pure $ isComplete <$> parseAutomaton "<a, b>, <1, 2, 3>, <1>, <1,3>, <(1, a, 1), (2, b, 1), (1, b, 2), (2, b, 2), (2, a, 3), (3, a, 2), (3, b, 3)>"
+    Right False <- pure $ isDFA <$> parseAutomaton "<a, b>, <1, 2, 3>, <1>, <1,3>, <(1, a, 1), (2, b, 1), (1, b, 2), (2, b, 2), (2, a, 3), (3, a, 2), (3, b, 3)>"
     return ()

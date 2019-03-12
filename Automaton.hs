@@ -39,9 +39,9 @@ parseAutomaton s = case (runParser prsAutomation (streamCreate s)) of
 
 prsAutomation :: Parser Char (Automaton String String)
 prsAutomation = do
-    let epsilon        = "epsilon"
+    let epsilon        = "\\epsilon"
 
-    let nonEmptyString = some (letter <|> digit)
+    let nonEmptyString = some (char '\\' <|> letter <|> digit)
     let colon          = many space *> char ',' <* many space
 
     listSigma <- parseList nonEmptyString (char ',') (char '<') (char '>') (> 0)
@@ -113,7 +113,7 @@ isDFA aut =
     let keys = Map.keys $ delta aut
     in  checKeys keys && foldr (\key b -> checkValues key && b) True keys
   where
-    checkValues key = length (catMaybes $ Map.lookup key (delta aut)) <= 1
+    checkValues key = length (Map.lookup key (delta aut)) <= 1
     checKeys keys = epsilon aut `notElem` (snd <$> keys)
 
 
@@ -130,7 +130,7 @@ isComplete aut =
                 , a <- Set.toList (sigma aut)
                 ]
     in  foldr (\key b -> checkValues key && b) True allKeys
-    where checkValues key = not $ null (Map.lookup key (delta aut))
+    where checkValues key = length (Map.lookup key (delta aut)) == 1
 
 -- Checks if the automaton is minimal (only for DFAs: the number of states is minimal)
 isMinimal :: Automaton a b -> Bool
