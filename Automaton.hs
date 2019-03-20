@@ -126,7 +126,7 @@ isNFA = const True
 
 -- Checks if the automaton is complete (there exists a transition for each state and each input symbol)
 isComplete :: (Ord a, Ord b) => Automaton a b -> Bool
-isComplete aut =
+isComplete aut = isDFA aut &&
     let allKeys =
                 [ (b, a)
                 | b <- Set.toList (states aut)
@@ -136,8 +136,9 @@ isComplete aut =
     where checkValues key = length (Map.lookup key (delta aut)) == 1
 
 -- Checks if the automaton is minimal (only for DFAs: the number of states is minimal)
-isMinimal :: Automaton a b -> Bool
-isMinimal = undefined
+isMinimal :: (Ord a, Ord b) => Automaton a b -> Bool
+isMinimal aut = isDFA aut &&
+    Set.size (states $ minimizationDFA (completionDFA aut)) == Set.size (states aut)
 
 -- Transform non complete DFA to complete DFA
 completionDFA :: (Ord a, Ord b) => Automaton a b -> Automaton a b
@@ -159,6 +160,9 @@ data ConvertionState a b = Info { added' :: Set [b]
                                 , term' :: Set [b]
                                 , delta' :: Map ([b], a) (Maybe [b])
                                 }
+-- remove copies and sort
+rmdups :: (Ord a) => [a] -> [a]
+rmdups = map head . group . sort
 
 -- Thompson algorithm (for automaton without epsilon transitions)
 convertNFAtoFDA :: (Ord a, Ord b) => Automaton a b -> Automaton a [b]
@@ -166,10 +170,6 @@ convertNFAtoFDA aut = evalState
     (convertNFAtoFDA_ aut)
     (Info Set.empty (Set.fromList [[initState aut]]) Set.empty Map.empty)
   where
-
-    rmdups :: (Ord a) => [a] -> [a]
-    rmdups = map head . group . sort
-
     convertNFAtoFDA_
         :: (Ord a, Ord b)
         => Automaton a b
@@ -233,3 +233,140 @@ convertNFAtoFDA aut = evalState
                 mapM_ processEdge edgesTo
 
                 convertNFAtoFDA_ aut
+
+-- Epsilon closure
+epsilonClosure :: Automaton a b -> Automaton a b
+epsilonClosure = undefined -- TODO
+
+-- Minimization algorithm
+minimizationDFA :: (Ord a, Ord b) => Automaton a b -> Automaton a [b]
+minimizationDFA aut =
+    let
+        allStates  = Set.toList $ states aut
+        termStates = Set.toList $ termState aut
+        nonTerm    = allStates \\ termStates
+        initQueue =
+            [ (min term all, max term all)
+            | term <- termStates
+            , all  <- nonTerm
+            ]
+        invertedDelta = invertDelta aut
+        joinedClasses = joinState (Set.fromList initQueue)
+                                  (sigma aut)
+                                  (states aut)
+                                  invertedDelta
+        newTerminals = markTerminal (termState aut) joinedClasses
+        newStart     = markStart (initState aut) joinedClasses
+        newDelta     = markDelta (delta aut) (sigma aut) joinedClasses
+    in
+        Automaton (sigma aut)
+                  (Set.fromList joinedClasses)
+                  newStart
+                  newTerminals
+                  newDelta
+                  (epsilon aut)
+  where
+    markTerminal :: Ord b => Set b -> [[b]] -> Set [b]
+    markTerminal terminal states =
+        Set.filter (any (`Set.member` terminal)) (Set.fromList states)
+
+    markStart :: Ord b => b -> [[b]] -> [b]
+    markStart start states = head $ filter (elem start) states
+
+    markDelta
+        :: (Ord b, Ord a)
+        => Map (b, a) (Maybe b)
+        -> Set a
+        -> [[b]]
+        -> Map ([b], a) (Maybe [b])
+    markDelta delta sigma states = Map.fromList
+        [ ((st1, sig), Just st2)
+        | sig <- Set.toList sigma
+        , st1 <- states
+        , st2 <- states
+        , or
+            $   pure (\x y -> Map.lookup (x, sig) delta == [Just y])
+            <*> st1
+            <*> st2
+        ]
+
+
+-- Reverse delta function (only for complete DFA)
+invertDelta :: (Ord a, Ord b) => Automaton a b -> Map (b, a) b
+invertDelta aut = execState (invertDeltaImpl aut) Map.empty
+  where
+    invertDeltaImpl
+        :: (Ord a, Ord b) => Automaton a b -> State (Map (b, a) b) ()
+    invertDeltaImpl aut = do
+        let deltaFun = delta aut
+        let allSigma = Set.toList $ sigma aut
+        let allState = Set.toList $ states aut
+
+        let
+            processEdge (currentSigma, currentState) = do
+                let [targetState] =
+                        Map.lookup (currentState, currentSigma) deltaFun
+                unless (isNothing targetState)
+                    $ modify
+                          (Map.insert (fromJust targetState, currentSigma)
+                                      currentState
+                          )
+
+        mapM_ processEdge [ (sig, st) | sig <- allSigma, st <- allState ]
+
+-- Join equal state in DFA (only for complete DFA)
+joinState
+    :: (Ord a, Ord b) => Set (b, b) -> Set a -> Set b -> Map (b, a) b -> [[b]]
+joinState queue sigma states delta = evalState
+    (splitClassesImpl sigma states delta)
+    (queue, queue)
+  where
+    splitClassesImpl
+        :: (Ord a, Ord b)
+        => Set a
+        -> Set b
+        -> Map (b, a) b
+        -> State (Set (b, b), Set (b, b)) [[b]]
+    splitClassesImpl sigma states delta = do
+        let modifyQueue f = modify $ \(queue, table) -> (f queue, table)
+        let modifyTable f = modify $ \(queue, table) -> (queue, f table)
+        let getsQueue f = gets $ \(queue, _) -> f queue
+        let getsTable f = gets $ \(_, table) -> f table
+
+        queue <- getsQueue id
+        if null queue
+            then do
+                finalTable <- getsTable id
+                let classes =
+                        rmdups
+                            $   rmdups
+                            <$> [ [ st2
+                                  | st2 <- Set.toList states
+                                  , not $ Set.member
+                                      (min st1 st2, max st1 st2)
+                                      finalTable
+                                  ]
+                                | st1 <- Set.toList states
+                                ]
+                return classes
+            else do
+                (st1', st2') <- getsQueue $ Set.elemAt 0
+                modifyQueue $ Set.deleteAt 0
+                let st1 = min st1' st2'
+                    st2 = max st1' st2'
+                let uniqToProcess = rmdups
+                        [ (min b1 b2, max b1 b2)
+                        | sig <- Set.toList sigma
+                        , b1  <- Map.lookup (st1, sig) delta
+                        , b2  <- Map.lookup (st2, sig) delta
+                        ]
+
+                let
+                    processPair pair = do
+                        inTable <- getsTable $ Set.member pair
+                        unless inTable
+                            $  modifyQueue (Set.insert pair)
+                            >> modifyTable (Set.insert pair)
+
+                mapM_ processPair uniqToProcess
+                splitClassesImpl sigma states delta

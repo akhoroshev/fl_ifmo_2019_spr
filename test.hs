@@ -9,6 +9,7 @@ main = do
     testIsDFA
     testIsComplete
     testAll
+    testIsMinimal
     putStrLn "Test passed"
     return ()
 
@@ -64,6 +65,13 @@ testIsComplete = do
     Right False <- pure $ isComplete <$> parseAutomaton "<a>, <1>, <1>, <1>, <>"
     Right False <- pure $ isComplete <$> parseAutomaton "<a,b>, <1>, <1>, <1>, <(1, a, 1)>"
     Right False <- pure $ isComplete <$> parseAutomaton "<a,b>, <1,2>, <1>, <1>, <(1, a, 1), (1, b, 1), (2, a, 1)>"
+    return ()
+
+testIsMinimal :: IO ()
+testIsMinimal = do
+    Right True <- pure $ isMinimal <$> parseAutomaton "<a>, <1>, <1>, <1>, <(1, a, 1)>"
+
+    Right False <- pure $ isMinimal <$> parseAutomaton "<0,1>,<a,b,c,d,e,f,g>,<a>,<f,g>,<(a,0,c),(a,1,b),(b,0,c),(b,1,a),(c,0,d),(c,1,d),(d,0,e),(d,1,f),(e,1,g),(e,0,f),(f,0,f),(f,1,f),(g,0,g),(g,1,f)>"
     return ()
 
 testAll :: IO ()
