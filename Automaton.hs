@@ -126,19 +126,22 @@ isNFA = const True
 
 -- Checks if the automaton is complete (there exists a transition for each state and each input symbol)
 isComplete :: (Ord a, Ord b) => Automaton a b -> Bool
-isComplete aut = isDFA aut &&
-    let allKeys =
-                [ (b, a)
-                | b <- Set.toList (states aut)
-                , a <- Set.toList (sigma aut)
-                ]
-    in  foldr (\key b -> checkValues key && b) True allKeys
+isComplete aut =
+    isDFA aut
+        && let allKeys =
+                   [ (b, a)
+                   | b <- Set.toList (states aut)
+                   , a <- Set.toList (sigma aut)
+                   ]
+           in  foldr (\key b -> checkValues key && b) True allKeys
     where checkValues key = length (Map.lookup key (delta aut)) == 1
 
 -- Checks if the automaton is minimal (only for DFAs: the number of states is minimal)
 isMinimal :: (Ord a, Ord b) => Automaton a b -> Bool
-isMinimal aut = isDFA aut &&
-    Set.size (states $ minimizationDFA (completionDFA aut)) == Set.size (states aut)
+isMinimal aut =
+    isDFA aut
+        && Set.size (states $ minimalizationDFA (completionDFA aut))
+        == Set.size (states aut)
 
 -- Transform non complete DFA to complete DFA
 completionDFA :: (Ord a, Ord b) => Automaton a b -> Automaton a b
@@ -165,10 +168,12 @@ rmdups :: (Ord a) => [a] -> [a]
 rmdups = map head . group . sort
 
 -- Thompson algorithm (for automaton without epsilon transitions)
-convertNFAtoFDA :: (Ord a, Ord b) => Automaton a b -> Automaton a [b]
-convertNFAtoFDA aut = evalState
-    (convertNFAtoFDA_ aut)
-    (Info Set.empty (Set.fromList [[initState aut]]) Set.empty Map.empty)
+convertNFAtoDFA :: (Ord a, Ord b) => Automaton a b -> Automaton a [b]
+convertNFAtoDFA aut = if epsilon aut `elem` (snd <$> (Map.keys $ delta aut))
+    then error "Automaton without eplsilon transition expected"
+    else evalState
+        (convertNFAtoFDA_ aut)
+        (Info Set.empty (Set.fromList [[initState aut]]) Set.empty Map.empty)
   where
     convertNFAtoFDA_
         :: (Ord a, Ord b)
@@ -199,16 +204,18 @@ convertNFAtoFDA aut = evalState
                     (\st -> st { term' = Set.insert itemList (term' st) })
 
                 let forCheck = [ (itemList, a) | a <- Set.toList oldSigma ]
-                let edgesTo = foldr
+                let
+                    edgesTo = filter (not . null . fst) $ foldr
                         (\(item, symb) ans ->
-                            ( rmdups
-                                .   catMaybes
-                                .   concat
-                                $   (\i -> Map.lookup (i, symb) oldDelta)
-                                <$> item
-                                , symb
-                                )
-                                : ans
+                            let edges =
+                                        ( rmdups
+                                            .   catMaybes
+                                            .   concat
+                                            $ (\i -> Map.lookup (i, symb) oldDelta)
+                                            <$> item
+                                        , symb
+                                        )
+                            in  edges : ans
                         )
                         []
                         forCheck
@@ -235,36 +242,91 @@ convertNFAtoFDA aut = evalState
                 convertNFAtoFDA_ aut
 
 -- Epsilon closure
-epsilonClosure :: Automaton a b -> Automaton a b
-epsilonClosure = undefined -- TODO
+epsilonClosure :: (Ord a, Ord b) => Automaton a b -> Automaton a [b]
+epsilonClosure aut = Automaton oldSigma
+                               (Set.fromList newStates)
+                               newInitState
+                               newTerminal
+                               newDelta
+                               oldEplsilon
+  where
+    oldEplsilon  = epsilon aut
+    oldStates    = states aut
+    oldSigma     = sigma aut
+    oldDelta     = delta aut
+    oldTerminal  = termState aut
+    oldInitState = initState aut
+    --dfs :: [b] -> b -> [b]
+    dfs taken node
+        | node `elem` taken
+        = taken
+        | otherwise
+        = foldl dfs (node : taken)
+            $            catMaybes
+            $            (node, oldEplsilon)
+            `Map.lookup` oldDelta
 
--- Minimization algorithm
-minimizationDFA :: (Ord a, Ord b) => Automaton a b -> Automaton a [b]
-minimizationDFA aut =
-    let
-        allStates  = Set.toList $ states aut
-        termStates = Set.toList $ termState aut
-        nonTerm    = allStates \\ termStates
-        initQueue =
-            [ (min term all, max term all)
-            | term <- termStates
-            , all  <- nonTerm
-            ]
-        invertedDelta = invertDelta aut
-        joinedClasses = joinState (Set.fromList initQueue)
-                                  (sigma aut)
-                                  (states aut)
-                                  invertedDelta
-        newTerminals = markTerminal (termState aut) joinedClasses
-        newStart     = markStart (initState aut) joinedClasses
-        newDelta     = markDelta (delta aut) (sigma aut) joinedClasses
-    in
-        Automaton (sigma aut)
-                  (Set.fromList joinedClasses)
-                  newStart
-                  newTerminals
-                  newDelta
-                  (epsilon aut)
+    statesToFilter = Set.fromList . dfs [] <$> Set.toList oldStates
+    newStates      = Set.toList <$> rmdups
+        (filter (\x -> all (not . Set.isProperSubsetOf x) statesToFilter)
+                statesToFilter
+        )
+
+    newDelta = Map.fromList $ do
+        sigma  <- Set.toList oldSigma
+        states <- newStates
+        let oldDest =
+                rmdups
+                    $ catMaybes
+                          (concatMap
+                              (\st -> Map.lookup (st, sigma) oldDelta)
+                              states
+                          )
+            newDest =
+                rmdups $ concatMap (\x -> filter (elem x) newStates) oldDest
+        dest <- newDest
+        return ((states, sigma), Just dest)
+
+    newTerminal = foldl
+        (\set x ->
+            if any (`elem` oldTerminal) x then x `Set.insert` set else set
+        )
+        Set.empty
+        newStates
+    newInitState = fromMaybe (error "init not found")
+        $ find (elem oldInitState) newStates
+
+
+-- Minimalization algorithm
+minimalizationDFA :: (Ord a, Ord b) => Automaton a b -> Automaton a [b]
+minimalizationDFA aut' = if not $ isDFA aut'
+    then error "Automaton must be a DFA"
+    else
+        let
+            aut        = completionDFA aut'
+            allStates  = Set.toList $ states aut
+            termStates = Set.toList $ termState aut
+            nonTerm    = allStates \\ termStates
+            initQueue =
+                [ (min term all, max term all)
+                | term <- termStates
+                , all  <- nonTerm
+                ]
+            invertedDelta = invertDelta aut
+            joinedClasses = joinState (Set.fromList initQueue)
+                                      (sigma aut)
+                                      (states aut)
+                                      invertedDelta
+            newTerminals = markTerminal (termState aut) joinedClasses
+            newStart     = markStart (initState aut) joinedClasses
+            newDelta     = markDelta (delta aut) (sigma aut) joinedClasses
+        in
+            Automaton (sigma aut)
+                      (Set.fromList joinedClasses)
+                      newStart
+                      newTerminals
+                      newDelta
+                      (epsilon aut)
   where
     markTerminal :: Ord b => Set b -> [[b]] -> Set [b]
     markTerminal terminal states =
