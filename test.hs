@@ -111,6 +111,7 @@ testMinimalization = do
 
 testConvertNFAtoDFA :: IO ()
 testConvertNFAtoDFA = do
+    -- https://neerc.ifmo.ru/wiki/index.php?title=Построение_по_НКА_эквивалентного_ДКА,_алгоритм_Томпсона#.D0.9F.D1.80.D0.B8.D0.BC.D0.B5.D1.80
     let expected = "Automaton {sigma = fromList [\"a\",\"b\"], states = fromList [[\"1\"],[\"1\",\"2\"]], initState = [\"1\"], termState = fromList [[\"1\",\"2\"]], delta = [(([\"1\"],\"a\"),Just [\"1\",\"2\"]),(([\"1\"],\"b\"),Just [\"1\"]),(([\"1\",\"2\"],\"a\"),Just [\"1\",\"2\"]),(([\"1\",\"2\"],\"b\"),Just [\"1\",\"2\"])], epsilon = \"\\\\epsilon\"}"
     Right actual <- pure $ show . convertNFAtoDFA <$> parseAutomaton "<a,b>, <1,2>, <1>, <2>, <(1,a,1), (1,b,1), (1,a,2), (2,b,1), (2,b,2)>"
     True <- pure (expected == actual)
