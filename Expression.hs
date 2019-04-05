@@ -63,7 +63,7 @@ parserOr = parserImpl parserAnd parserOr (string "||" $> Disj)
 
 -- And \to Comp && And | Comp
 parserAnd :: Parser Char (EAst Integer)
-parserAnd = parserImpl parserComp parserAnd (string "&&" $> Disj)
+parserAnd = parserImpl parserComp parserAnd (string "&&" $> Conj)
 
 parserImpl :: Parser Char (EAst Integer) -> Parser Char (EAst Integer) -> Parser Char Operator -> Parser Char (EAst Integer)
 parserImpl parser1 parser2 parserOp = do
@@ -92,7 +92,8 @@ parserComp =
 -- Pr \to == | /= | <= | < | > | >=
 parserPr :: Parser Char Operator
 parserPr =
-  string "==" $>  Eq
+  string "=="
+    $>  Eq
     <|> string "/="
     $>  Neq
     <|> string "<="

@@ -16,7 +16,6 @@ module Combinators
     , parseList
     , space
     , satisfy
-    , space
     )
 where
 
