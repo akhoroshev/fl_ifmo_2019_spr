@@ -26,7 +26,9 @@ data EAst a = BinOp Operator (EAst a) (EAst a)
 
 -- Change the signature if necessary
 parseExpression :: String -> Either String (EAst Integer)
-parseExpression input = undefined
+parseExpression input = case runParser parserOr $ streamCreate input of 
+  Left err -> Left $ show err
+  Right res -> Right $ snd res
 
 instance Show Operator where
   show Pow   = "^"
@@ -107,11 +109,21 @@ parserPr =
 
 -- Sum \to Sum + Mul | Sum - Mul | Mul
 parserSum :: Parser Char (EAst Integer)
-parserSum = undefined
+parserSum = parserLeftRecImpl parserMul (string "+" $> Sum <|> string "==" $> Eq)
 
 -- Mul \to Mul * Pow | Mul / Pow | Pow
 parserMul :: Parser Char (EAst Integer)
-parserMul = undefined
+parserMul = parserLeftRecImpl parserPow (string "*" $> Mul <|> string "/" $> Div)
+
+-- Implement parsing expresions like: A \to A op C | C
+parserLeftRecImpl :: Parser Char (EAst Integer) -> Parser Char Operator -> Parser Char (EAst Integer)
+parserLeftRecImpl parserA parserOp = do
+  first <- many space *> parserA
+  other <- many $ do
+    op <- many space *> parserOp
+    it <- many space *> parserA
+    return (op, it)
+  return $ foldl (\first (op, it) -> BinOp op first it) first other
 
 -- Pow \to (Or) ^ Pow | Num ^ Pow | (Or) | Num
 parserPow :: Parser Char (EAst Integer)
