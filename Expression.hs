@@ -120,7 +120,7 @@ parserPr =
 
 -- Sum \to Sum + Mul | Sum - Mul | Mul
 parserSum :: Parser Char (EAst Integer)
-parserSum = parserLeftRecImpl parserMul (string "+" $> Sum <|> string "==" $> Eq)
+parserSum = parserLeftRecImpl parserMul (string "+" $> Sum <|> string "-" $> Minus)
 
 -- Mul \to Mul * Pow | Mul / Pow | Pow
 parserMul :: Parser Char (EAst Integer)
