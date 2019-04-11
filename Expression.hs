@@ -25,20 +25,71 @@ data Operator = Pow
 data EAst a = BinOp Operator (EAst a) (EAst a)
             | Primary a
 
-            
+
 -- Change the signature if necessary
 -- Calculates the value of the input expression
 executeExpression :: String -> Either String Integer
-executeExpression input = 
-  runParserUntilEof (expression undefined undefined) input
-            
+executeExpression =
+  runParserUntilEof (expression specificationAction parserNum)
+
+
+parseExpression :: String -> Either String (EAst Integer)
+parseExpression =
+  runParserUntilEof (expression specificationAST (Primary <$> parserNum))
+
+specificationAST :: [(Assoc, [(Parser Char String, EAst a -> EAst a -> EAst a)])]
+specificationAST =
+  [ (RAssoc, [(string "||", BinOp Disj)])
+  , (RAssoc, [(string "&&", BinOp Conj)])
+  , ( NAssoc
+    , [ (string "==", BinOp Eq)
+      , (string "/=", BinOp Neq)
+      , (string "<=", BinOp Le)
+      , (string ">=", BinOp Ge)
+      , (string "<" , BinOp Lt)
+      , (string ">" , BinOp Gt)
+      ]
+    )
+  , (LAssoc, [(string "+", BinOp Sum), (string "-", BinOp Minus)])
+  , (LAssoc, [(string "*", BinOp Mul), (string "/", BinOp Div)])
+  , (RAssoc, [(string "^", BinOp Pow)])
+  ]
+
+specificationAction :: [(Assoc, [(Parser Char String, Integer-> Integer -> Integer)])]
+specificationAction =
+  let 
+    toBool :: Integer -> Bool
+    toBool 0 = False
+    toBool _ = True
+
+    toInteger :: Bool -> Integer
+    toInteger False = 0
+    toInteger _ = 1
+
+    argsToBool :: (Bool -> Bool -> Bool) -> Integer -> Integer -> Integer
+    argsToBool f x y = toInteger $ f (toBool x) (toBool y)
+  in
+  [ (RAssoc, [(string "||", argsToBool (||))])
+  , (RAssoc, [(string "&&", argsToBool (&&))])
+  , ( NAssoc
+    , [ (string "==", (toInteger .) <$> (==))
+      , (string "/=", (toInteger .) <$> (/=))
+      , (string "<=", (toInteger .) <$> (<=))
+      , (string ">=", (toInteger .) <$> (>=))
+      , (string "<" , (toInteger .) <$> (<))
+      , (string ">" , (toInteger .) <$> (>))
+      ]
+    )
+  , (LAssoc, [(string "+", (+)), (string "-", (-))])
+  , (LAssoc, [(string "*", (*)), (string "/", div)])
+  , (RAssoc, [(string "^", (^))])
+  ]
+
 -- Change the signature if necessary
 -- Constructs AST for the input expression
-parseExpression :: String -> Either String (EAst Integer)
---parseExpression input = 
---  runParserUntilEof (expression undefined undefined) input
-parseExpression input = case runParser parserOr $ streamCreate input of 
-  Left err -> Left $ show err
+parseExpressionDeprecated :: String -> Either String (EAst Integer)
+parseExpressionDeprecated input = case runParser parserOr $ streamCreate input of
+  Left  err -> Left $ show err
   Right res -> Right $ snd res
 
 instance Show Operator where
@@ -78,15 +129,21 @@ parserOr = parserImpl parserAnd parserOr (string "||" $> Disj)
 parserAnd :: Parser Char (EAst Integer)
 parserAnd = parserImpl parserComp parserAnd (string "&&" $> Conj)
 
-parserImpl :: Parser Char (EAst Integer) -> Parser Char (EAst Integer) -> Parser Char Operator -> Parser Char (EAst Integer)
-parserImpl parser1 parser2 parserOp = do
-  many space
-  p1 <- parser1
-  many space
-  op <- parserOp
-  many space
-  BinOp op p1 <$> parser2
-  <|> many space *> parser1
+parserImpl
+  :: Parser Char (EAst Integer)
+  -> Parser Char (EAst Integer)
+  -> Parser Char Operator
+  -> Parser Char (EAst Integer)
+parserImpl parser1 parser2 parserOp =
+  do
+      many space
+      p1 <- parser1
+      many space
+      op <- parserOp
+      many space
+      BinOp op p1 <$> parser2
+    <|> many space
+    *>  parser1
 
 -- Comp \to Sum Pr Sum | Sum
 parserComp :: Parser Char (EAst Integer)
@@ -120,14 +177,19 @@ parserPr =
 
 -- Sum \to Sum + Mul | Sum - Mul | Mul
 parserSum :: Parser Char (EAst Integer)
-parserSum = parserLeftRecImpl parserMul (string "+" $> Sum <|> string "-" $> Minus)
+parserSum =
+  parserLeftRecImpl parserMul (string "+" $> Sum <|> string "-" $> Minus)
 
 -- Mul \to Mul * Pow | Mul / Pow | Pow
 parserMul :: Parser Char (EAst Integer)
-parserMul = parserLeftRecImpl parserPow (string "*" $> Mul <|> string "/" $> Div)
+parserMul =
+  parserLeftRecImpl parserPow (string "*" $> Mul <|> string "/" $> Div)
 
 -- Implement parsing expresions like: A \to A op C | C
-parserLeftRecImpl :: Parser Char (EAst Integer) -> Parser Char Operator -> Parser Char (EAst Integer)
+parserLeftRecImpl
+  :: Parser Char (EAst Integer)
+  -> Parser Char Operator
+  -> Parser Char (EAst Integer)
 parserLeftRecImpl parserA parserOp = do
   first <- many space *> parserA
   other <- many $ do
@@ -154,7 +216,7 @@ parserPow =
           char '^'
           many space
           BinOp Pow base <$> parserPow
-        <|>  alt
+        <|> alt
 
 
 -- Num \to DigitsNum | Digits | 0

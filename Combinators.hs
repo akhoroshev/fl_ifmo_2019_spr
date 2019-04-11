@@ -1,25 +1,7 @@
 {-# Language InstanceSigs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Combinators
-    ( Parser
-    , runParser
-    , streamCreate
-    , char
-    , string
-    , some
-    , many
-    , digit
-    , letter
-    , choice
-    , eof
-    , parseList
-    , space
-    , satisfy
-    , runParserUntilEof
-    , expression
-    )
-where
+module Combinators where
 
 -- import Prelude hiding ( fail )
 
@@ -201,16 +183,20 @@ parseList el del lbr rbr pr =
         parseOther = (del >> manySpaces) *> el <* manySpaces
         parseFirst = manySpaces *> el <* manySpaces
     in
-        (lbr >> manySpaces >> rbr >> (if pr 0 then return [] else fail "unexpected items in list")) <|>
-        do
-            lbr
-            x  <- parseFirst
-            xs <- many parseOther
-            rbr
-            let result = x : xs
-            if pr $ length result
-                then return result
-                else fail "unexpected items in list"
+        (  lbr
+            >> manySpaces
+            >> rbr
+            >> (if pr 0 then return [] else fail "unexpected items in list")
+            )
+            <|> do
+                    lbr
+                    x  <- parseFirst
+                    xs <- many parseOther
+                    rbr
+                    let result = x : xs
+                    if pr $ length result
+                        then return result
+                        else fail "unexpected items in list"
 
 
 data Assoc = LAssoc -- left associativity
@@ -221,23 +207,44 @@ data Assoc = LAssoc -- left associativity
 -- Binary operators are listed in the order of precedence (from lower to higher)
 -- Binary operators on the same level of precedence have the same associativity
 -- Binary operator is specified with a parser for the operator itself and a semantic function to apply to the operands
-expression :: forall ok a. [(Assoc, [(Parser Char ok, a -> a -> a)])] ->
-              Parser Char a ->
-              Parser Char a
-expression ops primary = undefined
-    where
-        parseRecoursive :: [(Assoc, [(Parser Char ok, a -> a -> a)])] -> Parser Char a
-        parseRecoursive ((LAssoc, parsers):xs) = do -- A \to A op B
-            first <- many space *> parseRecoursive xs
-            other <- many $ do
-                op <- many space *> choice (fmap (uncurry ($>)) parsers)
-                it <- many space *> parseRecoursive xs
-                return (op, it)
-            return $ foldl (\first (op, it) -> op first it) first other
-        parseRecoursive ((RAssoc, parsers):xs) = undefined
-        parseRecoursive ((NAssoc, parsers):xs) = undefined
+expression
+    :: forall ok a
+     . [(Assoc, [(Parser Char ok, a -> a -> a)])]
+    -> Parser Char a
+    -> Parser Char a
+expression ops primary = parseRecoursive ops
+  where
+    parseRecoursive
+        :: [(Assoc, [(Parser Char ok, a -> a -> a)])] -> Parser Char a
+    parseRecoursive ((LAssoc, parsers) : xs) = do
+        first <- many space *> parseRecoursive xs
+        other <- many $ do
+            op <- many space *> choice (fmap (uncurry ($>)) parsers)
+            it <- many space *> parseRecoursive xs
+            return (op, it)
+        return $ foldl (\first (op, it) -> op first it) first other
+    parseRecoursive inp@((RAssoc, parsers) : xs) = do
+        first <- many space *> parseRecoursive xs
+        op    <- many space *> choice (fmap (uncurry ($>)) parsers)
+        it    <- parseRecoursive inp
+        return $ op first it
+    parseRecoursive ((NAssoc, parsers) : xs) =
+        parseRecoursive xs
+            <**> choice (fmap (uncurry ($>)) parsers)
+            <*>  parseRecoursive xs
+            <|>  parseRecoursive xs
+    parseRecoursive [] =
+        primary
+            <|> char '('
+            *>  many space
+            *>  parseRecoursive ops
+            <*  many space
+            <*  char ')'
 
 
 runParserUntilEof :: Parser token ok -> [token] -> Either String ok
-runParserUntilEof p inp =
-  either (Left . show) (\(rest, ok) -> if null (stream rest) then Right ok else Left "Expected eof") (runParser p $ streamCreate inp)
+runParserUntilEof p inp = either
+    (Left . show)
+    (\(rest, ok) -> Right ok
+    )
+    (runParser p $ streamCreate inp)
