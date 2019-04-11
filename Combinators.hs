@@ -228,11 +228,12 @@ expression ops primary = parseRecoursive ops
         op    <- many space *> choice (fmap (uncurry ($>)) parsers)
         it    <- parseRecoursive inp
         return $ op first it
+        <|> many space *> parseRecoursive xs <* many space
     parseRecoursive ((NAssoc, parsers) : xs) =
         parseRecoursive xs
             <**> choice (fmap (uncurry ($>)) parsers)
             <*>  parseRecoursive xs
-            <|>  parseRecoursive xs
+            <|>  many space *> parseRecoursive xs <* many space
     parseRecoursive [] =
         primary
             <|> char '('
@@ -240,7 +241,6 @@ expression ops primary = parseRecoursive ops
             *>  parseRecoursive ops
             <*  many space
             <*  char ')'
-
 
 runParserUntilEof :: Parser token ok -> [token] -> Either String ok
 runParserUntilEof p inp = either
