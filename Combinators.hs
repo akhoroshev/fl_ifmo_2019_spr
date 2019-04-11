@@ -223,17 +223,22 @@ expression ops primary = parseRecoursive ops
             it <- many space *> parseRecoursive xs
             return (op, it)
         return $ foldl (\first (op, it) -> op first it) first other
-    parseRecoursive inp@((RAssoc, parsers) : xs) = do
-        first <- many space *> parseRecoursive xs
-        op    <- many space *> choice (fmap (uncurry ($>)) parsers)
-        it    <- parseRecoursive inp
-        return $ op first it
-        <|> many space *> parseRecoursive xs <* many space
+    parseRecoursive inp@((RAssoc, parsers) : xs) =
+        do
+                first <- many space *> parseRecoursive xs
+                op    <- many space *> choice (fmap (uncurry ($>)) parsers)
+                it    <- parseRecoursive inp
+                return $ op first it
+            <|> many space
+            *>  parseRecoursive xs
+            <*  many space
     parseRecoursive ((NAssoc, parsers) : xs) =
         parseRecoursive xs
             <**> choice (fmap (uncurry ($>)) parsers)
             <*>  parseRecoursive xs
-            <|>  many space *> parseRecoursive xs <* many space
+            <|>  many space
+            *>   parseRecoursive xs
+            <*   many space
     parseRecoursive [] =
         primary
             <|> char '('
@@ -245,6 +250,6 @@ expression ops primary = parseRecoursive ops
 runParserUntilEof :: Parser token ok -> [token] -> Either String ok
 runParserUntilEof p inp = either
     (Left . show)
-    (\(rest, ok) -> Right ok
+    (\(rest, ok) -> if null (stream rest) then Right ok else Left "Expected eof"
     )
     (runParser p $ streamCreate inp)
