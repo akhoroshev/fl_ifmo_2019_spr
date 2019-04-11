@@ -1,5 +1,5 @@
 {-# Language InstanceSigs #-}
-
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Combinators
     ( Parser
@@ -28,6 +28,8 @@ import           Control.Monad                  ( void )
 import qualified Control.Monad.Fail            as Fail
 import           Data.Char
 import           Data.Foldable
+import           Data.Functor
+
 
 
 -- -- Location is pair of line and column
@@ -209,7 +211,7 @@ parseList el del lbr rbr pr =
             if pr $ length result
                 then return result
                 else fail "unexpected items in list"
-                
+
 
 data Assoc = LAssoc -- left associativity
            | RAssoc -- right associativity
@@ -219,11 +221,23 @@ data Assoc = LAssoc -- left associativity
 -- Binary operators are listed in the order of precedence (from lower to higher)
 -- Binary operators on the same level of precedence have the same associativity
 -- Binary operator is specified with a parser for the operator itself and a semantic function to apply to the operands
-expression :: [(Assoc, [(Parser token ok, a -> a -> a)])] -> 
-              Parser token ok ->
-              Parser token ok
-expression ops primary = undefined 
+expression :: forall ok a. [(Assoc, [(Parser Char ok, a -> a -> a)])] ->
+              Parser Char a ->
+              Parser Char a
+expression ops primary = undefined
+    where
+        parseRecoursive :: [(Assoc, [(Parser Char ok, a -> a -> a)])] -> Parser Char a
+        parseRecoursive ((LAssoc, parsers):xs) = do -- A \to A op B
+            first <- many space *> parseRecoursive xs
+            other <- many $ do
+                op <- many space *> choice (fmap (uncurry ($>)) parsers)
+                it <- many space *> parseRecoursive xs
+                return (op, it)
+            return $ foldl (\first (op, it) -> op first it) first other
+        parseRecoursive ((RAssoc, parsers):xs) = undefined
+        parseRecoursive ((NAssoc, parsers):xs) = undefined
 
-runParserUntilEof :: Parser token ok -> [token] -> Either String ok 
-runParserUntilEof p inp = 
+
+runParserUntilEof :: Parser token ok -> [token] -> Either String ok
+runParserUntilEof p inp =
   either (Left . show) (\(rest, ok) -> if null (stream rest) then Right ok else Left "Expected eof") (runParser p $ streamCreate inp)

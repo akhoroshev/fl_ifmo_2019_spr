@@ -4,7 +4,7 @@ import           Control.Applicative
 import           Text.Printf
 import           Combinators
 import           Data.Char
-import Data.Functor
+import           Data.Functor
 
 
 data Operator = Pow
